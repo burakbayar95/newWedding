@@ -24,5 +24,8 @@ export interface UploadItem {
   status: UploadStatus;
   progress: number;
   message: string;
+  canRetry: boolean;
+  fileIndex?: number;
+  uploadGroupId?: string;
   response?: AppsScriptUploadResponse;
 }

@@ -3,13 +3,16 @@ import {
   CheckCircle2,
   FileImage,
   Loader2,
+  RotateCcw,
   Video,
 } from 'lucide-react';
 import type { UploadItem } from '../types/upload';
 import { formatBytes, formatMimeLabel } from '../utils/formatters';
 
 interface UploadProgressListProps {
+  isUploading: boolean;
   items: UploadItem[];
+  onRetry: (item: UploadItem) => void;
 }
 
 const statusLabels: Record<UploadItem['status'], string> = {
@@ -20,7 +23,11 @@ const statusLabels: Record<UploadItem['status'], string> = {
   error: 'Hata',
 };
 
-export default function UploadProgressList({ items }: UploadProgressListProps) {
+export default function UploadProgressList({
+  isUploading,
+  items,
+  onRetry,
+}: UploadProgressListProps) {
   if (items.length === 0) {
     return null;
   }
@@ -30,6 +37,7 @@ export default function UploadProgressList({ items }: UploadProgressListProps) {
       {items.map((item) => {
         const isVideo = item.file.type.startsWith('video/');
         const isBusy = item.status === 'reading' || item.status === 'uploading';
+        const canRetry = item.status === 'error' && item.canRetry;
 
         return (
           <article
@@ -56,7 +64,7 @@ export default function UploadProgressList({ items }: UploadProgressListProps) {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2 text-sm font-medium">
+                  <div className="flex flex-wrap items-center gap-2 text-sm font-medium sm:justify-end">
                     {item.status === 'success' && (
                       <CheckCircle2
                         className="h-4 w-4 text-sage-600"
@@ -86,6 +94,17 @@ export default function UploadProgressList({ items }: UploadProgressListProps) {
                     >
                       {statusLabels[item.status]}
                     </span>
+                    {canRetry && (
+                      <button
+                        className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-red-100 bg-white px-3 text-xs font-semibold text-red-700 shadow-sm transition hover:border-red-200 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        type="button"
+                        onClick={() => onRetry(item)}
+                        disabled={isUploading}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                        Tekrar dene
+                      </button>
+                    )}
                   </div>
                 </div>
 

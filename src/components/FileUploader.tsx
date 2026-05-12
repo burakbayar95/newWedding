@@ -24,7 +24,7 @@ const appsScriptUploadUrl =
   import.meta.env.VITE_APPS_SCRIPT_UPLOAD_URL?.trim() ?? '';
 const directUploadApiUrl = import.meta.env.VITE_UPLOAD_API_URL?.trim() ?? '';
 const fallbackParallelUploads = 2;
-const directApiParallelUploads = 4;
+const directApiParallelUploads = 6;
 const maxConfigurableParallelUploads = 6;
 const acceptedFileTypes = [
   'image/*',
@@ -114,6 +114,7 @@ function createUploadItem(file: File): UploadItem {
     progress: validation.isValid ? 0 : 100,
     status: validation.isValid ? 'queued' : 'error',
     message: validation.message,
+    canRetry: validation.isValid,
   };
 }
 
@@ -233,6 +234,9 @@ export default function FileUploader() {
   );
   const hasSuccessfulUpload = items.some((item) => item.status === 'success');
   const hasOnlyErrors = items.length > 0 && items.every((item) => item.status === 'error');
+  const hasRetryableErrors = items.some(
+    (item) => item.status === 'error' && item.canRetry,
+  );
 
   const updateItem = (id: string, patch: Partial<UploadItem>) => {
     setItems((currentItems) =>
@@ -277,6 +281,8 @@ export default function FileUploader() {
 
     if (directUploadApiUrl) {
       updateItem(item.id, {
+        fileIndex,
+        uploadGroupId,
         status: 'uploading',
         progress: 1,
         message: 'Hızlı yükleme sunucusuna gönderiliyor... %0',
@@ -311,6 +317,8 @@ export default function FileUploader() {
     }
 
     updateItem(item.id, {
+      fileIndex,
+      uploadGroupId,
       status: 'reading',
       progress: 5,
       message: 'Dosya yükleme için hazırlanıyor...',
@@ -388,6 +396,23 @@ export default function FileUploader() {
       fileIndex: index + 1,
       item,
     }));
+    const queueMetadata = new Map(
+      indexedQueue.map(({ fileIndex, item }) => [
+        item.id,
+        {
+          fileIndex,
+          uploadGroupId,
+        },
+      ]),
+    );
+
+    setItems((currentItems) =>
+      currentItems.map((item) => {
+        const metadata = queueMetadata.get(item.id);
+
+        return metadata ? { ...item, ...metadata } : item;
+      }),
+    );
 
     for (let start = 0; start < indexedQueue.length; start += maxParallelUploads) {
       const batch = indexedQueue.slice(start, start + maxParallelUploads);
@@ -409,6 +434,40 @@ export default function FileUploader() {
 
     resetFileInput();
     setIsUploading(false);
+  };
+
+  const handleRetryUpload = async (item: UploadItem) => {
+    if (isUploading || !item.canRetry) {
+      return;
+    }
+
+    const fallbackFileIndex = items.findIndex((currentItem) => currentItem.id === item.id) + 1;
+    const fileIndex = item.fileIndex ?? Math.max(1, fallbackFileIndex);
+    const uploadGroupId = item.uploadGroupId ?? createUploadGroupId();
+
+    setIsUploading(true);
+    setGlobalMessage('');
+    updateItem(item.id, {
+      fileIndex,
+      uploadGroupId,
+      status: 'queued',
+      progress: 0,
+      message: 'Tekrar yükleme başlatılıyor...',
+      response: undefined,
+    });
+
+    try {
+      await uploadSingleFile(item, fileIndex, uploadGroupId);
+    } catch (error) {
+      updateItem(item.id, {
+        status: 'error',
+        progress: 100,
+        message: getFriendlyErrorMessage(error),
+      });
+    } finally {
+      resetFileInput();
+      setIsUploading(false);
+    }
   };
 
   const clearCompletedSelection = () => {
@@ -515,12 +574,20 @@ export default function FileUploader() {
         {hasOnlyErrors && !isUploading && (
           <div className="flex items-start gap-2 rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>Seçilen dosyalar yüklemeye uygun değil.</span>
+            <span>
+              {hasRetryableErrors
+                ? 'Yüklenemeyen dosyaları tek tek tekrar deneyebilirsiniz.'
+                : 'Seçilen dosyalar yüklemeye uygun değil.'}
+            </span>
           </div>
         )}
       </div>
 
-      <UploadProgressList items={items} />
+      <UploadProgressList
+        isUploading={isUploading}
+        items={items}
+        onRetry={handleRetryUpload}
+      />
     </div>
   );
 }

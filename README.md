@@ -12,7 +12,7 @@ Yeni hızlı sürümde frontend GitHub Pages'te kalır, upload ise ayrı Node/Do
 - Drag & drop yükleme alanı
 - Misafir adı alanı, isteğe bağlı
 - Her dosya için ayrı durum ve progress göstergesi
-- Hızlı backend modunda dosyalar varsayılan olarak 4'lü gruplar halinde paralel yüklenir
+- Hızlı backend modunda dosyalar varsayılan olarak 6'lı gruplar halinde paralel yüklenir
 - Hızlı backend modunda dosyalar base64'e çevrilmeden `multipart/form-data` ile gönderilir
 - Türkçe, mobil öncelikli arayüz
 - Dosya validasyonu
@@ -29,7 +29,7 @@ Yeni hızlı sürümde frontend GitHub Pages'te kalır, upload ise ayrı Node/Do
 ```env
 VITE_APPS_SCRIPT_UPLOAD_URL=
 VITE_UPLOAD_API_URL=https://178.104.201.90.nip.io/upload
-VITE_UPLOAD_CONCURRENCY=4
+VITE_UPLOAD_CONCURRENCY=6
 VITE_BASE_PATH=/newWedding/
 ```
 
@@ -41,7 +41,7 @@ VITE_UPLOAD_API_URL=https://api.example.com/upload
 
 `VITE_APPS_SCRIPT_UPLOAD_URL`, eski Apps Script Web App fallback URL'sidir.
 
-`VITE_UPLOAD_CONCURRENCY`, aynı anda kaç dosya yükleneceğini belirler. Varsayılan hızlı backend için `4`, Apps Script fallback için `2` olur. Değer verilirse tarayıcıyı ve Drive API'yi zorlamamak için en fazla `6` kabul edilir.
+`VITE_UPLOAD_CONCURRENCY`, aynı anda kaç dosya yükleneceğini belirler. Varsayılan hızlı backend için `6`, Apps Script fallback için `2` olur. Değer verilirse tarayıcıyı ve Drive API'yi zorlamamak için en fazla `6` kabul edilir.
 
 ## Hızlı backend kurulumu
 
