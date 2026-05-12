@@ -2,7 +2,9 @@
 
 React + Vite + TypeScript + Tailwind ile hazırlanmış, GitHub Pages üzerinde yayınlanabilen nişan fotoğraf/video yükleme sitesi.
 
-Misafirler QR kod ile siteye girer, adlarını isterlerse yazar ve İdil & Burak'ın 16.05.2026 tarihli nişan fotoğraf/videolarını yükler. Dosyalar Firebase veya ayrı backend olmadan Google Apps Script Web App endpoint'i üzerinden Google Drive klasörünüze kaydedilir.
+Misafirler QR kod ile siteye girer, adlarını isterlerse yazar ve İdil & Burak'ın 16.05.2026 tarihli nişan fotoğraf/videolarını yükler. Dosyalar hızlı backend üzerinden Google Drive klasörünüze kaydedilir; backend URL verilmezse eski Google Apps Script fallback yolu kullanılabilir.
+
+Yeni hızlı sürümde frontend GitHub Pages'te kalır, upload ise ayrı Node/Docker backend üzerinden Google Drive'a stream edilir. `VITE_UPLOAD_API_URL` verilirse hızlı backend kullanılır; verilmezse eski Apps Script/base64 yolu fallback olarak çalışır.
 
 ## Özellikler
 
@@ -11,6 +13,7 @@ Misafirler QR kod ile siteye girer, adlarını isterlerse yazar ve İdil & Burak
 - Misafir adı alanı, isteğe bağlı
 - Her dosya için ayrı durum ve progress göstergesi
 - Dosyalar 2'li gruplar halinde paralel yüklenir
+- Hızlı backend modunda dosyalar base64'e çevrilmeden `multipart/form-data` ile gönderilir
 - Türkçe, mobil öncelikli arayüz
 - Dosya validasyonu
   - Fotoğraf: en fazla 2 GB
@@ -25,10 +28,90 @@ Misafirler QR kod ile siteye girer, adlarını isterlerse yazar ve İdil & Burak
 
 ```env
 VITE_APPS_SCRIPT_UPLOAD_URL=
-VITE_BASE_PATH=/wedding-upload/
+VITE_UPLOAD_API_URL=
+VITE_BASE_PATH=/newWedding/
 ```
 
-`VITE_APPS_SCRIPT_UPLOAD_URL`, Apps Script Web App deploy URL'sidir.
+`VITE_UPLOAD_API_URL`, hızlı backend upload endpoint'idir. Örnek:
+
+```env
+VITE_UPLOAD_API_URL=https://api.example.com/upload
+```
+
+`VITE_APPS_SCRIPT_UPLOAD_URL`, eski Apps Script Web App fallback URL'sidir.
+
+## Hızlı backend kurulumu
+
+Backend kodu `backend/` klasöründedir. GitHub Pages frontend'i statik kalır, dosya upload'ları bu API'ye gider.
+
+Backend için önerilen Google Drive yetkilendirmesi service account'tur:
+
+1. Google Cloud Console'da proje oluşturun veya mevcut proje kullanın.
+2. Google Drive API'yi etkinleştirin.
+3. Service account oluşturun.
+4. Service account için JSON key indirin.
+5. Drive'daki hedef klasörü service account email'i ile paylaşın.
+6. Sunucuda JSON dosyasını gizli bir path'e koyun.
+
+Backend env örneği:
+
+```env
+PORT=8080
+DRIVE_FOLDER_ID=1Kqi...
+GOOGLE_SERVICE_ACCOUNT_FILE=/run/secrets/google-service-account.json
+ALLOWED_ORIGINS=https://burakbayar95.github.io,http://127.0.0.1:5187
+MAX_FILE_BYTES=5368709120
+```
+
+Docker build:
+
+```bash
+docker build -t new-wedding-upload-api ./backend
+```
+
+Docker run:
+
+```bash
+docker run -d \
+  --name new-wedding-upload-api \
+  -p 8080:8080 \
+  --env-file ./backend/.env \
+  -v /opt/new-wedding/google-service-account.json:/run/secrets/google-service-account.json:ro \
+  new-wedding-upload-api
+```
+
+Production'da bu API HTTPS arkasında yayınlanmalıdır. GitHub Pages HTTPS olduğu için backend de HTTPS olmalı; aksi halde tarayıcı mixed-content sebebiyle upload'u engeller.
+
+Bu repo `deploy/docker-compose.yml` ile Caddy + upload API birlikte çalışacak şekilde hazırlanmıştır. Caddy otomatik HTTPS alır.
+
+Sunucu deploy env örneği:
+
+```bash
+mkdir -p /opt/new-wedding
+cp deploy/.env.example deploy/.env
+```
+
+`deploy/.env` içinde:
+
+```env
+UPLOAD_DOMAIN=178.104.201.90.nip.io
+DRIVE_FOLDER_ID=1Kqi...
+GOOGLE_SERVICE_ACCOUNT_FILE=/opt/new-wedding/google-service-account.json
+ALLOWED_ORIGINS=https://burakbayar95.github.io,http://127.0.0.1:5187
+MAX_FILE_BYTES=5368709120
+```
+
+Sonra:
+
+```bash
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
+```
+
+Frontend secret:
+
+```env
+VITE_UPLOAD_API_URL=https://178.104.201.90.nip.io/upload
+```
 
 ## Google Drive ve Apps Script kurulumu
 
@@ -62,12 +145,13 @@ npm run build
 
 ## GitHub Pages deploy
 
-1. GitHub'da `wedding-upload` adlı repo oluşturun.
+1. GitHub'da `newWedding` adlı repo oluşturun.
 2. Bu projeyi repo'ya push edin.
 3. Repo ayarlarında `Settings > Pages > Build and deployment > Source` değerini `GitHub Actions` seçin.
 4. `Settings > Secrets and variables > Actions` altında secret ekleyin:
    - `VITE_APPS_SCRIPT_UPLOAD_URL`
-   - İsterseniz `VITE_BASE_PATH` için `/wedding-upload/`
+   - Hızlı backend kullanacaksanız `VITE_UPLOAD_API_URL`
+   - İsterseniz `VITE_BASE_PATH` için `/newWedding/`
 5. `main` branch'e push edildiğinde `.github/workflows/deploy.yml` çalışır.
 
 ### `Get Pages site failed` hatası
@@ -89,7 +173,7 @@ Bu ayardan sonra workflow'u yeniden çalıştırın veya `main` branch'e yeni bi
 Yayın URL'si:
 
 ```text
-https://burakbayar95.github.io/wedding-upload/
+https://burakbayar95.github.io/newWedding/
 ```
 
 QR kodu bu URL için oluşturabilirsiniz.

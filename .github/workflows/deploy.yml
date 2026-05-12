@@ -20,7 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VITE_APPS_SCRIPT_UPLOAD_URL: ${{ secrets.VITE_APPS_SCRIPT_UPLOAD_URL }}
-      VITE_BASE_PATH: ${{ secrets.VITE_BASE_PATH || vars.VITE_BASE_PATH || '/wedding-upload/' }}
+      VITE_UPLOAD_API_URL: ${{ secrets.VITE_UPLOAD_API_URL }}
+      VITE_BASE_PATH: ${{ secrets.VITE_BASE_PATH || vars.VITE_BASE_PATH || '/newWedding/' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -38,7 +39,7 @@ jobs:
         run: npm run build
 
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
         # If this step says "Get Pages site failed", enable Pages first:
         # Repository Settings > Pages > Build and deployment > Source: GitHub Actions
 
@@ -56,4 +57,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

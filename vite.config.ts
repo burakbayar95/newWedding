@@ -1,7 +1,7 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
-const defaultBasePath = '/wedding-upload/';
+const defaultBasePath = '/newWedding/';
 
 function normalizeBasePath(basePath: string | undefined) {
   if (!basePath) {

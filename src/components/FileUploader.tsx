@@ -20,7 +20,9 @@ import {
   validateUploadFile,
 } from '../utils/fileValidation';
 
-const uploadUrl = import.meta.env.VITE_APPS_SCRIPT_UPLOAD_URL?.trim() ?? '';
+const appsScriptUploadUrl =
+  import.meta.env.VITE_APPS_SCRIPT_UPLOAD_URL?.trim() ?? '';
+const directUploadApiUrl = import.meta.env.VITE_UPLOAD_API_URL?.trim() ?? '';
 const maxParallelUploads = 2;
 const acceptedFileTypes = [
   'image/*',
@@ -144,6 +146,62 @@ async function postUploadPayload(
   return parsedResponse;
 }
 
+function postDirectUpload(
+  endpointUrl: string,
+  formData: FormData,
+  onUploadProgress: (progress: number) => void,
+) {
+  return new Promise<AppsScriptUploadResponse>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.open('POST', endpointUrl, true);
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) {
+        return;
+      }
+
+      onUploadProgress(Math.round((event.loaded / event.total) * 100));
+    };
+
+    xhr.onerror = () => {
+      reject(
+        new Error(
+          'Hızlı yükleme sunucusuna ulaşılamadı. API adresini ve sunucu durumunu kontrol edin.',
+        ),
+      );
+    };
+
+    xhr.onabort = () => {
+      reject(new Error('Yükleme iptal edildi.'));
+    };
+
+    xhr.onload = () => {
+      let parsedResponse: AppsScriptUploadResponse;
+
+      try {
+        parsedResponse = JSON.parse(xhr.responseText) as AppsScriptUploadResponse;
+      } catch {
+        reject(new Error('Sunucudan geçerli bir yanıt alınamadı.'));
+        return;
+      }
+
+      if (xhr.status < 200 || xhr.status >= 300 || !parsedResponse.success) {
+        reject(
+          new Error(
+            parsedResponse.error || 'Google Drive yüklemesi tamamlanamadı.',
+          ),
+        );
+        return;
+      }
+
+      resolve(parsedResponse);
+    };
+
+    xhr.send(formData);
+  });
+}
+
 export default function FileUploader() {
   const [guestName, setGuestName] = useState('');
   const [items, setItems] = useState<UploadItem[]>([]);
@@ -198,6 +256,43 @@ export default function FileUploader() {
     fileIndex: number,
     uploadGroupId: string,
   ) => {
+    const mimeType = inferUploadMimeType(item.file);
+
+    if (directUploadApiUrl) {
+      updateItem(item.id, {
+        status: 'uploading',
+        progress: 1,
+        message: 'Hızlı yükleme sunucusuna gönderiliyor... %0',
+      });
+
+      const formData = new FormData();
+      formData.append('guestName', guestName.trim());
+      formData.append('fileName', item.sanitizedFileName);
+      formData.append('mimeType', mimeType);
+      formData.append('fileIndex', String(fileIndex));
+      formData.append('uploadGroupId', uploadGroupId);
+      formData.append('file', item.file, item.sanitizedFileName);
+
+      const response = await postDirectUpload(
+        directUploadApiUrl,
+        formData,
+        (progress) => {
+          updateItem(item.id, {
+            progress: Math.min(98, Math.max(1, progress)),
+            message: `Hızlı yükleme sunucusuna gönderiliyor... %${progress}`,
+          });
+        },
+      );
+
+      updateItem(item.id, {
+        status: 'success',
+        progress: 100,
+        message: 'Dosya başarıyla yüklendi.',
+        response,
+      });
+      return;
+    }
+
     updateItem(item.id, {
       status: 'reading',
       progress: 5,
@@ -237,12 +332,12 @@ export default function FileUploader() {
       const payload: AppsScriptUploadPayload = {
         guestName: guestName.trim(),
         fileName: item.sanitizedFileName,
-        mimeType: inferUploadMimeType(item.file),
+        mimeType,
         fileIndex,
         uploadGroupId,
         base64Data,
       };
-      const response = await postUploadPayload(uploadUrl, payload);
+      const response = await postUploadPayload(appsScriptUploadUrl, payload);
 
       updateItem(item.id, {
         status: 'success',
@@ -256,9 +351,9 @@ export default function FileUploader() {
   };
 
   const handleUpload = async () => {
-    if (!uploadUrl) {
+    if (!directUploadApiUrl && !appsScriptUploadUrl) {
       setGlobalMessage(
-        'Yükleme adresi eksik. Lütfen VITE_APPS_SCRIPT_UPLOAD_URL değerini ayarlayın.',
+        'Yükleme adresi eksik. Lütfen VITE_UPLOAD_API_URL veya VITE_APPS_SCRIPT_UPLOAD_URL değerini ayarlayın.',
       );
       return;
     }

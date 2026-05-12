@@ -1,0 +1,45 @@
+services:
+  upload-api:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: new-wedding-upload-api
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      DRIVE_FOLDER_ID: "${DRIVE_FOLDER_ID}"
+      GOOGLE_OAUTH_CLIENT_ID: "${GOOGLE_OAUTH_CLIENT_ID:-}"
+      GOOGLE_OAUTH_CLIENT_SECRET: "${GOOGLE_OAUTH_CLIENT_SECRET:-}"
+      GOOGLE_OAUTH_REFRESH_TOKEN: "${GOOGLE_OAUTH_REFRESH_TOKEN:-}"
+      GOOGLE_SERVICE_ACCOUNT_FILE: /run/secrets/google-service-account.json
+      ALLOWED_ORIGINS: "${ALLOWED_ORIGINS}"
+      MAX_FILE_BYTES: "${MAX_FILE_BYTES:-5368709120}"
+    volumes:
+      - "${GOOGLE_SERVICE_ACCOUNT_FILE}:/run/secrets/google-service-account.json:ro"
+    networks:
+      - new-wedding
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: new-wedding-caddy
+    restart: unless-stopped
+    depends_on:
+      - upload-api
+    environment:
+      UPLOAD_DOMAIN: "${UPLOAD_DOMAIN}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - new-wedding
+
+networks:
+  new-wedding:
+
+volumes:
+  caddy_data:
+  caddy_config:

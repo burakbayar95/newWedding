@@ -10,3 +10,6 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 .DS_Store
+google-service-account*.json
+new-wedding-upload-*.json
+service-account*.json
