@@ -28,7 +28,7 @@ Yeni hızlı sürümde frontend GitHub Pages'te kalır, upload ise ayrı Node/Do
 
 ```env
 VITE_APPS_SCRIPT_UPLOAD_URL=
-VITE_UPLOAD_API_URL=
+VITE_UPLOAD_API_URL=https://178.104.201.90.nip.io/upload
 VITE_BASE_PATH=/newWedding/
 ```
 
@@ -44,22 +44,27 @@ VITE_UPLOAD_API_URL=https://api.example.com/upload
 
 Backend kodu `backend/` klasöründedir. GitHub Pages frontend'i statik kalır, dosya upload'ları bu API'ye gider.
 
-Backend için önerilen Google Drive yetkilendirmesi service account'tur:
+Backend için önerilen Google Drive yetkilendirmesi OAuth refresh token'dır. Bu yöntem dosyaları senin Google hesabının Drive kotasıyla hedef klasöre yazar:
 
 1. Google Cloud Console'da proje oluşturun veya mevcut proje kullanın.
 2. Google Drive API'yi etkinleştirin.
-3. Service account oluşturun.
-4. Service account için JSON key indirin.
-5. Drive'daki hedef klasörü service account email'i ile paylaşın.
-6. Sunucuda JSON dosyasını gizli bir path'e koyun.
+3. OAuth consent ekranında kendi Gmail adresinizi test user olarak ekleyin.
+4. OAuth Desktop client oluşturun ve client JSON dosyasını indirin.
+5. `backend/scripts/get-refresh-token.mjs` ile izin verip refresh token alın.
+6. Client id, client secret ve refresh token değerlerini sunucu env dosyasına yazın.
+
+Service account desteği fallback olarak durur; kişisel Drive klasörüne büyük dosya yazarken OAuth daha sorunsuzdur.
 
 Backend env örneği:
 
 ```env
 PORT=8080
 DRIVE_FOLDER_ID=1Kqi...
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OAUTH_REFRESH_TOKEN=
 GOOGLE_SERVICE_ACCOUNT_FILE=/run/secrets/google-service-account.json
-ALLOWED_ORIGINS=https://burakbayar95.github.io,http://127.0.0.1:5187
+ALLOWED_ORIGINS=https://burakbayar95.github.io,http://localhost:5173,http://127.0.0.1:5173
 MAX_FILE_BYTES=5368709120
 ```
 
@@ -96,8 +101,11 @@ cp deploy/.env.example deploy/.env
 ```env
 UPLOAD_DOMAIN=178.104.201.90.nip.io
 DRIVE_FOLDER_ID=1Kqi...
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OAUTH_REFRESH_TOKEN=
 GOOGLE_SERVICE_ACCOUNT_FILE=/opt/new-wedding/google-service-account.json
-ALLOWED_ORIGINS=https://burakbayar95.github.io,http://127.0.0.1:5187
+ALLOWED_ORIGINS=https://burakbayar95.github.io,http://localhost:5173,http://127.0.0.1:5173
 MAX_FILE_BYTES=5368709120
 ```
 
@@ -107,11 +115,13 @@ Sonra:
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 ```
 
-Frontend secret:
+Frontend upload URL:
 
 ```env
 VITE_UPLOAD_API_URL=https://178.104.201.90.nip.io/upload
 ```
+
+Bu repo için GitHub Actions workflow'u bu URL'yi varsayılan olarak kullanır. Domain değişirse `VITE_UPLOAD_API_URL` secret veya variable olarak güncelleyin.
 
 ## Google Drive ve Apps Script kurulumu
 
@@ -150,7 +160,7 @@ npm run build
 3. Repo ayarlarında `Settings > Pages > Build and deployment > Source` değerini `GitHub Actions` seçin.
 4. `Settings > Secrets and variables > Actions` altında secret ekleyin:
    - `VITE_APPS_SCRIPT_UPLOAD_URL`
-   - Hızlı backend kullanacaksanız `VITE_UPLOAD_API_URL`
+   - Backend domainini değiştirirseniz `VITE_UPLOAD_API_URL`
    - İsterseniz `VITE_BASE_PATH` için `/newWedding/`
 5. `main` branch'e push edildiğinde `.github/workflows/deploy.yml` çalışır.
 
