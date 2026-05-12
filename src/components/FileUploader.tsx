@@ -23,7 +23,9 @@ import {
 const appsScriptUploadUrl =
   import.meta.env.VITE_APPS_SCRIPT_UPLOAD_URL?.trim() ?? '';
 const directUploadApiUrl = import.meta.env.VITE_UPLOAD_API_URL?.trim() ?? '';
-const maxParallelUploads = 2;
+const fallbackParallelUploads = 2;
+const directApiParallelUploads = 4;
+const maxConfigurableParallelUploads = 6;
 const acceptedFileTypes = [
   'image/*',
   'video/*',
@@ -69,6 +71,21 @@ const acceptedFileTypes = [
   '.webm',
   '.wmv',
 ].join(',');
+
+function getMaxParallelUploads() {
+  const envValue = Number.parseInt(
+    import.meta.env.VITE_UPLOAD_CONCURRENCY ?? '',
+    10,
+  );
+
+  if (Number.isFinite(envValue) && envValue > 0) {
+    return Math.min(envValue, maxConfigurableParallelUploads);
+  }
+
+  return directUploadApiUrl ? directApiParallelUploads : fallbackParallelUploads;
+}
+
+const maxParallelUploads = getMaxParallelUploads();
 
 function createUploadGroupId() {
   const timestamp = new Date()
@@ -447,6 +464,9 @@ export default function FileUploader() {
           </span>
           <span className="mt-3 text-xs font-medium text-stone-500">
             JPG, RAW, HEIC, MP4, MOV · Fotoğraf: 2 GB · Video: 5 GB
+          </span>
+          <span className="mt-1 text-xs font-medium text-stone-500">
+            Aynı anda {maxParallelUploads} dosyaya kadar yüklenir.
           </span>
         </label>
 
